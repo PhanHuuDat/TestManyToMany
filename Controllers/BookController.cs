@@ -1,7 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Net;
 using TestManyToMany.DataAccess;
 using TestManyToMany.DTOs;
 using TestManyToMany.Models;
@@ -13,9 +12,12 @@ namespace TestManyToMany.Controllers
     public class BookController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        public BookController(ApplicationDbContext context)
+
+        private readonly IMapper _mapper;
+        public BookController(ApplicationDbContext context, IMapper mapper)
         {
             _context = context;
+            _mapper = mapper;  
         }
         [HttpPost("add-tag")]
         public async Task<ActionResult<Book>> AddTagToBook(AddTagToBookDTO dto)
@@ -35,6 +37,8 @@ namespace TestManyToMany.Controllers
             }
 
             book.Tags.Add(tag);
+            _context.Book.Update(book);
+
             await _context.SaveChangesAsync();
             return Ok(book);
         }
@@ -57,18 +61,22 @@ namespace TestManyToMany.Controllers
        
         public async Task<ActionResult<Book>> UpsertTagsToBook(UpsertSeveralTagsToBookDTO dto)
         {
-            var book = await _context.Book.Where(b => b.Id == dto.BookId).Include(b => b.Tags).FirstOrDefaultAsync();
 
+            var tags = _context.Tag.AsNoTracking().Where(t => dto.TagsId.Contains(t.Id)).ToList();
+            
+            var book = await _context.Book.AsNoTracking().Where(b => b.Id == dto.BookId).Include(b => b.Tags).FirstOrDefaultAsync();
+            
             if (book == null)
             {
                 return NotFound();
             }
 
-            var tags =  _context.Tag.Where(t => dto.TagsId.Any()).ToList();
 
-            
+
+
 
             book.Tags = tags;
+            _context.Book.Update(book);
             await _context.SaveChangesAsync();
             return Ok(book);
         }
